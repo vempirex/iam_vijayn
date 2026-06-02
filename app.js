@@ -5,10 +5,7 @@ import CONFIG from './config.js';
 // ==========================================
 let supabaseClient = null;
 let allPosts = []; // In-memory cache for search & filtering
-let allReactions = []; // In-memory cache for reactions
-let allComments = []; // In-memory cache for comments
 let activeDeleteId = null;
-let currentViewPostId = null;
 let touchTimeout = null;
 let isHolding = false;
 let isSupabaseConnected = false;
@@ -34,17 +31,6 @@ const postWriter = document.getElementById('post-writer');
 const countTitle = document.getElementById('count-title');
 const countBody = document.getElementById('count-body');
 const countWriter = document.getElementById('count-writer');
-
-// Comments & Share
-const formComment = document.getElementById('form-comment');
-const commentName = document.getElementById('comment-name');
-const commentText = document.getElementById('comment-text');
-const commentsList = document.getElementById('comments-list');
-const commentsCount = document.getElementById('comments-count');
-const viewReactions = document.getElementById('view-reactions');
-
-const btnViewShare = document.getElementById('btn-view-share');
-const shareMenu = document.getElementById('share-menu');
 
 // ==========================================
 // TOAST NOTIFICATIONS ENGINE
@@ -125,29 +111,16 @@ async function loadPosts() {
     showLoadingSkeletons();
     
     try {
-        const [postsRes, reactionsRes] = await Promise.all([
-            supabaseClient.from('posts').select('*').order('created_at', { ascending: false }),
-            supabaseClient.from('reactions').select('*')
-        ]);
+        const { data, error } = await supabaseClient
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
             
-        if (postsRes.error) throw postsRes.error;
-        if (reactionsRes.error) console.error("Reactions Fetch Error:", reactionsRes.error);
+        if (error) throw error;
         
-        allPosts = postsRes.data || [];
-        allReactions = reactionsRes.data || [];
-        
+        allPosts = data || [];
         renderGrid();
         updateWriterFilterOptions();
-        
-        // Handle direct linking to a post
-        const path = window.location.pathname;
-        if (path.startsWith('/post/')) {
-            const postId = path.split('/')[2];
-            const targetPost = allPosts.find(p => p.id === postId);
-            if (targetPost) {
-                openDetailView(targetPost);
-            }
-        }
         
     } catch (error) {
         console.error("Fetch Error:", error);
@@ -172,44 +145,17 @@ async function loadPosts() {
 function setupRealtimeSubscription() {
     try {
         supabaseClient
-            .channel('public:all')
+            .channel('public:posts')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'posts' }, (payload) => {
                 handlePostRealtimeEvent(payload);
             })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reactions' }, (payload) => {
-                handleReactionRealtimeEvent(payload);
-            })
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, (payload) => {
-                handleCommentRealtimeEvent(payload);
-            })
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
-                    console.log("Subscribed to real-time feeds.");
+                    console.log("Subscribed to real-time posts feed.");
                 }
             });
     } catch (error) {
         console.error("Realtime Subscription Error:", error);
-    }
-}
-
-function handleReactionRealtimeEvent(payload) {
-    const newReaction = payload.new;
-    if (!allReactions.some(r => r.id === newReaction.id)) {
-        allReactions.push(newReaction);
-        renderGrid();
-        if (currentViewPostId === newReaction.post_id) {
-            renderDetailReactions();
-        }
-    }
-}
-
-function handleCommentRealtimeEvent(payload) {
-    const newComment = payload.new;
-    if (!allComments.some(c => c.id === newComment.id)) {
-        allComments.push(newComment);
-        if (currentViewPostId === newComment.post_id) {
-            renderCommentsList();
-        }
     }
 }
 
@@ -291,15 +237,6 @@ function renderGrid() {
                     <div class="card-footer">
                         <span class="card-writer">@${escapeHTML(post.writer_name)}</span>
                         <span class="card-date">${dateStr}</span>
-                    </div>
-                    <div class="card-action-bar" onclick="event.stopPropagation()">
-                        <div class="card-action-btns">
-                            ${getReactionsHtml(post.id)}
-                        </div>
-                        <div class="card-action-btns" style="gap: 0.8rem;">
-                            <span title="Comments" style="cursor: pointer; color: var(--text-secondary);" onclick="openDetailViewFromId('${post.id}')">💬</span>
-                            <span title="Share" style="cursor: pointer; color: var(--text-secondary);" onclick="handleShare('${post.id}')">🔗</span>
-                        </div>
                     </div>
                 </article>
             </div>
@@ -429,8 +366,7 @@ function setupCardInteractions() {
 // ==========================================
 // DETAIL VIEW MODAL
 // ==========================================
-async function openDetailView(post) {
-    currentViewPostId = post.id;
+function openDetailView(post) {
     const viewTitle = document.getElementById('view-modal-title');
     const viewBody = document.getElementById('view-modal-body');
     const viewWriter = document.getElementById('view-modal-writer');
@@ -441,33 +377,7 @@ async function openDetailView(post) {
     viewWriter.textContent = `@${post.writer_name}`;
     viewDate.textContent = formatDetailedDate(post.created_at);
     
-    // Reactions
-    renderDetailReactions();
-    
-    // Comments
-    commentsList.innerHTML = '<div class="skeleton-line" style="height: 20px; width: 100%;"></div>';
-    commentsCount.textContent = '...';
-    try {
-        const { data, error } = await supabaseClient
-            .from('comments')
-            .select('*')
-            .eq('post_id', post.id)
-            .order('created_at', { ascending: false });
-        if (error) throw error;
-        allComments = data || [];
-        renderCommentsList();
-    } catch(err) {
-        commentsList.innerHTML = '<div class="comment-empty">Error loading comments</div>';
-    }
-    
-    formComment.reset();
-    shareMenu.classList.add('hidden');
     openModal(modalView);
-}
-
-window.openDetailViewFromId = function(postId) {
-    const post = allPosts.find(p => p.id === postId);
-    if (post) openDetailView(post);
 }
 
 // ==========================================
@@ -609,11 +519,7 @@ function setupEventListeners() {
     document.getElementById('btn-cancel-compose').addEventListener('click', () => closeModal(modalCompose));
     
     // 2. View Modals Close
-    document.getElementById('btn-close-view').addEventListener('click', () => {
-        currentViewPostId = null;
-        if(shareMenu) shareMenu.classList.add('hidden');
-        closeModal(modalView);
-    });
+    document.getElementById('btn-close-view').addEventListener('click', () => closeModal(modalView));
     
     // 3. Delete Modals Cancel/Confirm
     document.getElementById('btn-cancel-delete').addEventListener('click', () => closeModal(modalDelete));
@@ -623,10 +529,6 @@ function setupEventListeners() {
     document.querySelectorAll('.modal-overlay').forEach(overlay => {
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
-                if (overlay === modalView) {
-                    currentViewPostId = null;
-                    if(shareMenu) shareMenu.classList.add('hidden');
-                }
                 closeModal(overlay);
             }
         });
@@ -636,93 +538,12 @@ function setupEventListeners() {
     window.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             const openOverlays = document.querySelectorAll('.modal-overlay:not(.hidden)');
-            openOverlays.forEach(overlay => {
-                if (overlay === modalView) {
-                    currentViewPostId = null;
-                    if(shareMenu) shareMenu.classList.add('hidden');
-                }
-                closeModal(overlay);
-            });
+            openOverlays.forEach(overlay => closeModal(overlay));
         }
     });
     
     // 5. Compose Form submit
     formCompose.addEventListener('submit', handlePublishSubmit);
-    
-    // Comments Form Submit
-    if (formComment) {
-        formComment.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!isSupabaseConnected || !currentViewPostId) return;
-            
-            const nameVal = commentName.value.trim();
-            const textVal = commentText.value.trim();
-            if (!nameVal || !textVal) return;
-            
-            const btnSubmit = formComment.querySelector('.btn-submit-comment');
-            btnSubmit.disabled = true;
-            btnSubmit.style.opacity = '0.5';
-            
-            try {
-                const { error } = await supabaseClient
-                    .from('comments')
-                    .insert([{ post_id: currentViewPostId, commenter_name: nameVal, comment_text: textVal }]);
-                if (error) throw error;
-                
-                formComment.reset();
-                showToast("Comment posted!", "success");
-            } catch(err) {
-                console.error("Comment Error:", err);
-                showToast("Failed to post comment", "error");
-            } finally {
-                btnSubmit.disabled = false;
-                btnSubmit.style.opacity = '1';
-            }
-        });
-    }
-
-    // Share Dropdown Logic
-    if (btnViewShare) {
-        btnViewShare.addEventListener('click', (e) => {
-            e.stopPropagation();
-            shareMenu.classList.toggle('hidden');
-        });
-
-        document.querySelectorAll('.share-option').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (!currentViewPostId) return;
-                const platform = btn.dataset.platform;
-                const url = `${window.location.origin}/post/${currentViewPostId}`;
-                const post = allPosts.find(p => p.id === currentViewPostId);
-                const title = encodeURIComponent(post ? post.title : 'iam_vijayn');
-                const encodedUrl = encodeURIComponent(url);
-                
-                shareMenu.classList.add('hidden');
-                
-                switch (platform) {
-                    case 'copy':
-                        copyToClipboard(url);
-                        break;
-                    case 'whatsapp':
-                        window.open(`https://api.whatsapp.com/send?text=${title}%20${encodedUrl}`, '_blank');
-                        break;
-                    case 'twitter':
-                        window.open(`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${title}`, '_blank');
-                        break;
-                    case 'telegram':
-                        window.open(`https://t.me/share/url?url=${encodedUrl}&text=${title}`, '_blank');
-                        break;
-                }
-            });
-        });
-
-        document.addEventListener('click', () => {
-            if(!shareMenu.classList.contains('hidden')) {
-                shareMenu.classList.add('hidden');
-            }
-        });
-    }
     
     // 6. Character limits validation & live counters
     [postTitle, postBody, postWriter].forEach(el => {
@@ -816,128 +637,3 @@ function escapeHTML(str) {
 
 // Initialize when DOM is complete
 document.addEventListener('DOMContentLoaded', initApp);
-
-// ==========================================
-// REACTIONS, COMMENTS & SHARE ENGINE
-// ==========================================
-
-const REACTION_TYPES = [
-    { type: 'loved', icon: '❤️' },
-    { type: 'powerful', icon: '🔥' },
-    { type: 'thoughtful', icon: '🤔' },
-    { type: 'emotional', icon: '😢' }
-];
-
-window.toggleReaction = async function(e, postId, reactionType) {
-    e.stopPropagation();
-    if (!isSupabaseConnected) return;
-    
-    const localKey = `reacted_${postId}_${reactionType}`;
-    if (localStorage.getItem(localKey)) {
-        showToast("You have already reacted this way.", "info");
-        return;
-    }
-    
-    // Optimistic UI update
-    localStorage.setItem(localKey, 'true');
-    const newReaction = {
-        id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(),
-        post_id: postId,
-        reaction_type: reactionType,
-        created_at: new Date().toISOString()
-    };
-    allReactions.push(newReaction);
-    renderGrid();
-    if (currentViewPostId === postId) {
-        renderDetailReactions();
-    }
-    
-    try {
-        const { error } = await supabaseClient
-            .from('reactions')
-            .insert([{ post_id: postId, reaction_type: reactionType }]);
-            
-        if (error) throw error;
-    } catch (err) {
-        console.error("Reaction Error:", err);
-        localStorage.removeItem(localKey);
-        allReactions = allReactions.filter(r => r.id !== newReaction.id);
-        renderGrid();
-        if (currentViewPostId === postId) {
-            renderDetailReactions();
-        }
-        showToast("Could not send reaction.", "error");
-    }
-}
-
-window.getReactionsHtml = function(postId) {
-    const postReactions = allReactions.filter(r => r.post_id === postId);
-    return REACTION_TYPES.map(t => {
-        const count = postReactions.filter(r => r.reaction_type === t.type).length;
-        const hasReacted = localStorage.getItem(`reacted_${postId}_${t.type}`);
-        return `
-            <button class="reaction-btn ${hasReacted ? 'active' : ''}" onclick="toggleReaction(event, '${postId}', '${t.type}')" aria-label="${t.type}">
-                <span class="reaction-icon">${t.icon}</span>
-                <span class="reaction-count">${count > 0 ? count : ''}</span>
-            </button>
-        `;
-    }).join('');
-}
-
-window.renderDetailReactions = function() {
-    if (!currentViewPostId || !viewReactions) return;
-    viewReactions.innerHTML = getReactionsHtml(currentViewPostId);
-}
-
-window.renderCommentsList = function() {
-    if (!currentViewPostId || !commentsList || !commentsCount) return;
-    const postComments = allComments.filter(c => c.post_id === currentViewPostId)
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // newest first
-        
-    commentsCount.textContent = postComments.length;
-    
-    if (postComments.length === 0) {
-        commentsList.innerHTML = '<div class="comment-empty">Be the first to comment.</div>';
-        return;
-    }
-    
-    commentsList.innerHTML = postComments.map(c => `
-        <div class="comment-item">
-            <div class="comment-header">
-                <span class="comment-name">${escapeHTML(c.commenter_name)}</span>
-                <span class="comment-date">${formatFuzzyDate(c.created_at)}</span>
-            </div>
-            <div class="comment-body">${escapeHTML(c.comment_text)}</div>
-        </div>
-    `).join('');
-}
-
-window.handleShare = function(postId) {
-    const shareUrl = `${window.location.origin}/post/${postId}`;
-    const post = allPosts.find(p => p.id === postId);
-    
-    if (navigator.share) {
-        navigator.share({
-            title: post ? post.title : 'iam_vijayn',
-            text: post ? `Read this thought by ${post.writer_name}` : 'Check out this thought',
-            url: shareUrl,
-        }).catch(err => {
-            console.log("Share failed", err);
-        });
-    } else {
-        copyToClipboard(shareUrl);
-    }
-}
-
-window.copyToClipboard = function(text) {
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast("Link copied to clipboard!", "success");
-        }).catch(err => {
-            console.error("Copy failed", err);
-            showToast("Could not copy link", "error");
-        });
-    } else {
-        showToast("Clipboard copy not supported", "error");
-    }
-}
