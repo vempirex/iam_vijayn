@@ -97,6 +97,14 @@ function connectToSupabase(url, key) {
         isSupabaseConnected = true;
         
         closeModal(modalSetup);
+        
+        // Once successfully connected, unlock the setup modal for manual reopening
+        modalSetup.dataset.preventClose = "false";
+        const closeSetupBtn = document.getElementById('btn-close-setup');
+        if (closeSetupBtn) {
+            closeSetupBtn.classList.remove('hidden');
+        }
+        
         showToast("Connected to database successfully!", "success");
         
         // Fetch posts & start real-time subscription
@@ -130,7 +138,34 @@ async function loadPosts() {
         
     } catch (error) {
         console.error("Fetch Error:", error);
-        showToast("Failed to fetch thoughts from Supabase.", "error");
+        
+        let customMessage = "Failed to fetch thoughts from Supabase.";
+        
+        // Specific Postgres and connection errors
+        if (error.code === '42P01') {
+            customMessage = "Table 'posts' does not exist in Supabase. Please run the SQL schema script.";
+        } else if (error.status === 401 || error.status === 403 || (error.message && (error.message.includes('JWT') || error.message.includes('key')))) {
+            customMessage = "Invalid Supabase credentials. Re-configuring database...";
+            // If using localStorage, clear it and reopen the setup modal
+            if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
+                CONFIG.clearCredentials();
+                modalSetup.dataset.preventClose = "true";
+                const closeSetupBtn = document.getElementById('btn-close-setup');
+                if (closeSetupBtn) {
+                    closeSetupBtn.classList.add('hidden');
+                }
+                setupUrl.value = "";
+                setupKey.value = "";
+                
+                setTimeout(() => {
+                    openModal(modalSetup);
+                }, 1500);
+            }
+        } else if (error.message) {
+            customMessage = `Fetch failed: ${error.message}`;
+        }
+        
+        showToast(customMessage, "error");
         hideLoadingSkeletons();
         updateEmptyState();
     }
@@ -572,7 +607,26 @@ function setupEventListeners() {
         }
     });
     
-    // 9. Sticky Header and Scroll-To-Top button visibility
+    // 9. Manual Setup Modal Trigger in Header
+    const btnOpenSetup = document.getElementById('btn-open-setup');
+    const btnCloseSetup = document.getElementById('btn-close-setup');
+    
+    if (btnOpenSetup) {
+        btnOpenSetup.addEventListener('click', () => {
+            // Pre-fill existing credentials for editing convenience
+            setupUrl.value = CONFIG.getSupabaseUrl();
+            setupKey.value = CONFIG.getSupabaseAnonKey();
+            openModal(modalSetup);
+        });
+    }
+    
+    if (btnCloseSetup) {
+        btnCloseSetup.addEventListener('click', () => {
+            closeModal(modalSetup);
+        });
+    }
+    
+    // 10. Sticky Header and Scroll-To-Top button visibility
     window.addEventListener('scroll', () => {
         const header = document.querySelector('.app-header');
         if (window.scrollY > 30) {

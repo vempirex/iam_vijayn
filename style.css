@@ -245,6 +245,14 @@ a {
     transform: rotate(5deg) scale(1.1);
 }
 
+/* Rotation animation on Config Button */
+.btn-config svg {
+    transition: var(--transition-quick);
+}
+.btn-config:hover svg {
+    transform: rotate(30deg) scale(1.1);
+}
+
 /* ==========================================================================
    APP MAIN GRID LAYOUT
    ========================================================================== */
