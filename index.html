@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="iam_vijayn - A premium, minimal Pinterest-style writing wall for notes, thoughts, stories, and poems. Built with Supabase and Vanilla JS.">
+    <title>iam_vijayn | Minimal Writing Wall</title>
+    
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Styling -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Supabase JS Client via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <!-- STICKY GLASS HEADER -->
+    <header class="app-header">
+        <div class="header-container">
+            <a href="#" class="app-logo" id="logo-link">
+                <span class="logo-accent">i'am</span>_vijayn
+            </a>
+            
+            <!-- Minimal search bar inside header -->
+            <div class="search-wrapper">
+                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="search-input" placeholder="Search thoughts..." aria-label="Search posts">
+            </div>
+
+            <div class="header-actions">
+                <!-- Writer Filter dropdown -->
+                <div class="filter-wrapper">
+                    <select id="writer-filter" aria-label="Filter by writer">
+                        <option value="">All Writers</option>
+                    </select>
+                </div>
+                
+                <!-- Compose Pen Button -->
+                <button class="btn-icon btn-compose" id="btn-open-compose" title="Compose a thought" aria-label="Compose new post">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN APP VIEW -->
+    <main class="app-main">
+        <div class="grid-container">
+            <!-- MASONRY GRID -->
+            <div id="masonry-grid" class="masonry-grid">
+                <!-- SKELETON LOADER CARDS (rendered dynamically during load) -->
+            </div>
+            
+            <!-- EMPTY STATE -->
+            <div id="empty-state" class="empty-state hidden">
+                <div class="empty-icon-wrap">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                </div>
+                <h3>The wall is waiting...</h3>
+                <p>No words have been pinned here yet. Share the very first spark.</p>
+                <button class="btn btn-primary" id="btn-empty-compose">Compose a thought</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- SCROLL TO TOP BUTTON -->
+    <button id="btn-scroll-top" class="btn-scroll-top" aria-label="Scroll to top" title="Scroll to top">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5"></line>
+            <polyline points="5 12 12 5 19 12"></polyline>
+        </svg>
+    </button>
+
+    <!-- ==========================================
+         MODALS SYSTEM
+         ========================================== -->
+
+    <!-- 1. COMPOSE MODAL -->
+    <div class="modal-overlay hidden" id="modal-compose" role="dialog" aria-modal="true" aria-labelledby="compose-modal-title">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="compose-modal-title">Share a Thought</h2>
+                <button class="modal-close-icon" id="btn-close-compose" aria-label="Close modal">&times;</button>
+            </div>
+            <form id="form-compose" class="modal-form">
+                <div class="form-group">
+                    <label for="post-title">Title</label>
+                    <input type="text" id="post-title" name="title" required maxlength="80" placeholder="A striking title..." autocomplete="off">
+                    <div class="form-meta">
+                        <span class="error-msg" id="err-title">Title is required</span>
+                        <span class="char-count" id="count-title">0 / 80</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="post-body">Body / Thoughts</label>
+                    <textarea id="post-body" name="body" required maxlength="2000" rows="6" placeholder="Write your poem, quote, story, or random creative thoughts..."></textarea>
+                    <div class="form-meta">
+                        <span class="error-msg" id="err-body">Body content is required</span>
+                        <span class="char-count" id="count-body">0 / 2000</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="post-writer">Writer Name</label>
+                    <input type="text" id="post-writer" name="writer_name" required maxlength="40" placeholder="Your name or pen name..." autocomplete="off">
+                    <div class="form-meta">
+                        <span class="error-msg" id="err-writer">Writer name is required</span>
+                        <span class="char-count" id="count-writer">0 / 40</span>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-compose">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btn-publish-submit">
+                        <span class="btn-text">Publish</span>
+                        <div class="spinner hidden"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. DETAIL VIEW MODAL -->
+    <div class="modal-overlay hidden" id="modal-view" role="dialog" aria-modal="true" aria-labelledby="view-modal-title">
+        <div class="modal-card modal-view-card">
+            <button class="modal-close-icon" id="btn-close-view" aria-label="Close modal">&times;</button>
+            <div class="view-content">
+                <h2 id="view-modal-title" class="view-title"></h2>
+                <div class="view-divider"></div>
+                <div id="view-modal-body" class="view-body"></div>
+                <div class="view-footer">
+                    <div class="view-writer">
+                        <span class="writer-label">Written by</span>
+                        <span id="view-modal-writer" class="writer-name"></span>
+                    </div>
+                    <span id="view-modal-date" class="view-date"></span>
+                </div>
+            </div>
+            <!-- Quick delete hint on full card view -->
+            <div class="modal-view-hint">
+                Right-click / Long-press on the board card to delete
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. CONFIRM DELETE MODAL -->
+    <div class="modal-overlay hidden" id="modal-delete" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+        <div class="modal-card modal-dialog-card">
+            <h3 id="delete-modal-title" class="dialog-title">Delete this thought?</h3>
+            <p class="dialog-desc">This action is permanent and cannot be undone. It will be deleted from Supabase forever.</p>
+            <div class="modal-actions dialog-actions">
+                <button class="btn btn-secondary" id="btn-cancel-delete">Keep It</button>
+                <button class="btn btn-danger" id="btn-confirm-delete">
+                    <span class="btn-text">Delete Permanently</span>
+                    <div class="spinner hidden"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. CREDENTIALS WIZARD MODAL (Fallback Setup) -->
+    <div class="modal-overlay hidden" id="modal-setup" role="dialog" aria-modal="true" aria-labelledby="setup-modal-title" data-prevent-close="true">
+        <div class="modal-card setup-card">
+            <div class="modal-header">
+                <h2 id="setup-modal-title">Configure Supabase</h2>
+            </div>
+            <p class="setup-intro">Welcome to <strong>iam_vijayn</strong>! To connect this application to your database, please provide your Supabase details below. These are stored locally in your browser and used only to connect to your instance.</p>
+            
+            <form id="form-setup" class="modal-form">
+                <div class="form-group">
+                    <label for="setup-url">Supabase Project URL</label>
+                    <input type="url" id="setup-url" required placeholder="https://your-project.supabase.co" autocomplete="off">
+                </div>
+                
+                <div class="form-group">
+                    <label for="setup-key">Supabase API Anon Key</label>
+                    <input type="text" id="setup-key" required placeholder="eyJhbGciOi..." autocomplete="off">
+                </div>
+
+                <div class="setup-help-box">
+                    <p>💡 <strong>Where to find these?</strong> In your Supabase dashboard, go to <strong>Project Settings</strong> &rarr; <strong>API</strong>. Copy the <code>Project URL</code> and <code>anon (public)</code> key.</p>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary btn-full">Connect Database</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         TOAST NOTIFICATION ENGINE
+         ========================================== -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Main Module script -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
