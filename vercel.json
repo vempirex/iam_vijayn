@@ -36,5 +36,11 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/post/:id",
+      "destination": "/"
+    }
   ]
 }

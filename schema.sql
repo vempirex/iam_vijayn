@@ -26,14 +26,40 @@ CREATE POLICY "Allow public insert access" ON public.posts
 CREATE POLICY "Allow public delete access" ON public.posts
     FOR DELETE USING (true);
 
--- 4. Enable real-time updates for the posts table
--- Note: supabase_realtime is a pre-defined publication in modern Supabase projects.
+-- 4. Create the reactions table
+CREATE TABLE IF NOT EXISTS public.reactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
+    reaction_type VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.reactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read access to reactions" ON public.reactions FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access to reactions" ON public.reactions FOR INSERT WITH CHECK (true);
+
+-- 5. Create the comments table
+CREATE TABLE IF NOT EXISTS public.comments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    post_id UUID REFERENCES public.posts(id) ON DELETE CASCADE NOT NULL,
+    commenter_name VARCHAR(40) NOT NULL CHECK (char_length(trim(commenter_name)) > 0),
+    comment_text VARCHAR(1000) NOT NULL CHECK (char_length(trim(comment_text)) > 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read access to comments" ON public.comments FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access to comments" ON public.comments FOR INSERT WITH CHECK (true);
+
+-- 6. Enable real-time updates
 DO $$
 BEGIN
-  -- Safely add 'posts' to the realtime publication
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.posts;
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.posts, public.reactions, public.comments;
 EXCEPTION
   WHEN undefined_object THEN
-    -- In case supabase_realtime publication does not exist yet, create it
-    CREATE PUBLICATION supabase_realtime FOR TABLE public.posts;
+    CREATE PUBLICATION supabase_realtime FOR TABLE public.posts, public.reactions, public.comments;
+  WHEN others THEN
+    NULL; -- Silently ignore if tables are already in publication
 END $$;
