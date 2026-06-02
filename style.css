@@ -192,7 +192,9 @@ a {
 /* Filter Dropdown */
 .filter-wrapper select {
     appearance: none;
-    background: rgba(255, 255, 255, 0.03);
+    -webkit-appearance: none; /* Cross-browser support */
+    -moz-appearance: none;
+    background-color: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--glass-border);
     padding: 0.55rem 2rem 0.55rem 1rem;
     border-radius: var(--radius-full);
@@ -210,6 +212,14 @@ a {
 }
 
 .filter-wrapper select:focus,
+.filter-wrapper select:active {
+    background-color: #13111c !important;
+    color: var(--text-primary) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 10px var(--accent-glow) !important;
+    outline: none !important;
+}
+
 .filter-wrapper select:hover {
     border-color: var(--accent);
     color: var(--text-primary);
