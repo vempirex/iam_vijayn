@@ -216,6 +216,12 @@ a {
     box-shadow: 0 0 10px var(--accent-glow);
 }
 
+/* Dark mode styling for select dropdown options list */
+.filter-wrapper select option {
+    background-color: #13111c; /* Match Obsidian backdrop */
+    color: var(--text-primary); /* Off-white text */
+}
+
 /* Icon Buttons */
 .btn-icon {
     background: var(--glass-card);
