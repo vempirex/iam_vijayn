@@ -28,12 +28,12 @@ CREATE POLICY "Allow public delete access" ON public.posts
 
 -- 4. Enable real-time updates for the posts table
 -- Note: supabase_realtime is a pre-defined publication in modern Supabase projects.
-BEGIN;
+DO $$
+BEGIN
   -- Safely add 'posts' to the realtime publication
   ALTER PUBLICATION supabase_realtime ADD TABLE public.posts;
 EXCEPTION
   WHEN undefined_object THEN
     -- In case supabase_realtime publication does not exist yet, create it
     CREATE PUBLICATION supabase_realtime FOR TABLE public.posts;
-END;
-/
+END $$;
