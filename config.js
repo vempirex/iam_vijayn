@@ -1,24 +1,16 @@
 // Configuration for "iam_vijayn" Writing Wall
-// Fill in your credentials below, or leave them empty to use the runtime configuration wizard.
+// Credentials are automatically fetched from the Vercel backend API.
 
 const CONFIG = {
-    // 1. HARDCODED CONFIGURATION (Recommended for production deployment)
-    // Replace these empty strings with your actual Supabase URL and Anon Key.
     SUPABASE_URL: "", 
     SUPABASE_ANON_KEY: "",
 
-    // 2. RUNTIME / LOCAL STORAGE CONFIGURATION (Fallback)
-    // Allows testing the application instantly before deploying or hardcoding.
     getSupabaseUrl() {
-        return (this.SUPABASE_URL && this.SUPABASE_URL.trim() !== "") 
-            ? this.SUPABASE_URL 
-            : localStorage.getItem('IAM_VIJAYN_SUPABASE_URL') || "";
+        return this.SUPABASE_URL;
     },
 
     getSupabaseAnonKey() {
-        return (this.SUPABASE_ANON_KEY && this.SUPABASE_ANON_KEY.trim() !== "") 
-            ? this.SUPABASE_ANON_KEY 
-            : localStorage.getItem('IAM_VIJAYN_SUPABASE_ANON_KEY') || "";
+        return this.SUPABASE_ANON_KEY;
     },
 
     // Check if both credentials are set
@@ -26,20 +18,22 @@ const CONFIG = {
         return this.getSupabaseUrl().trim() !== "" && this.getSupabaseAnonKey().trim() !== "";
     },
 
-    // Save credentials to local storage for quick testing
-    saveCredentials(url, key) {
-        if (url && key) {
-            localStorage.setItem('IAM_VIJAYN_SUPABASE_URL', url.trim());
-            localStorage.setItem('IAM_VIJAYN_SUPABASE_ANON_KEY', key.trim());
-            return true;
+    // Fetch configuration from the backend
+    async init() {
+        try {
+            const response = await fetch('/api/config');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.supabaseUrl && data.supabaseAnonKey) {
+                    this.SUPABASE_URL = data.supabaseUrl.trim();
+                    this.SUPABASE_ANON_KEY = data.supabaseAnonKey.trim();
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error("Could not load backend configuration:", error);
         }
         return false;
-    },
-
-    // Clear saved credentials
-    clearCredentials() {
-        localStorage.removeItem('IAM_VIJAYN_SUPABASE_URL');
-        localStorage.removeItem('IAM_VIJAYN_SUPABASE_ANON_KEY');
     }
 };
 

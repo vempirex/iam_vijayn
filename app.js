@@ -21,7 +21,6 @@ const writerFilter = document.getElementById('writer-filter');
 const modalCompose = document.getElementById('modal-compose');
 const modalView = document.getElementById('modal-view');
 const modalDelete = document.getElementById('modal-delete');
-const modalSetup = document.getElementById('modal-setup');
 
 // Forms & Inputs
 const formCompose = document.getElementById('form-compose');
@@ -32,10 +31,6 @@ const postWriter = document.getElementById('post-writer');
 const countTitle = document.getElementById('count-title');
 const countBody = document.getElementById('count-body');
 const countWriter = document.getElementById('count-writer');
-
-const formSetup = document.getElementById('form-setup');
-const setupUrl = document.getElementById('setup-url');
-const setupKey = document.getElementById('setup-key');
 
 // ==========================================
 // TOAST NOTIFICATIONS ENGINE
@@ -75,14 +70,15 @@ function showToast(message, type = 'info') {
 // ==========================================
 // INITIALIZATION & CONNECTION
 // ==========================================
-function initApp() {
+async function initApp() {
     setupEventListeners();
+    
+    await CONFIG.init();
     
     if (CONFIG.hasCredentials()) {
         connectToSupabase(CONFIG.getSupabaseUrl(), CONFIG.getSupabaseAnonKey());
     } else {
-        // Show setup wizard
-        openModal(modalSetup);
+        showToast("Database configuration is missing. Please set environment variables on your server.", "error");
     }
 }
 
@@ -96,15 +92,6 @@ function connectToSupabase(url, key) {
         supabaseClient = window.supabase.createClient(url, key);
         isSupabaseConnected = true;
         
-        closeModal(modalSetup);
-        
-        // Once successfully connected, unlock the setup modal for manual reopening
-        modalSetup.dataset.preventClose = "false";
-        const closeSetupBtn = document.getElementById('btn-close-setup');
-        if (closeSetupBtn) {
-            closeSetupBtn.classList.remove('hidden');
-        }
-        
         showToast("Connected to database successfully!", "success");
         
         // Fetch posts & start real-time subscription
@@ -114,7 +101,6 @@ function connectToSupabase(url, key) {
     } catch (error) {
         console.error("Connection Error:", error);
         showToast(`Connection failed: ${error.message}`, "error");
-        openModal(modalSetup);
     }
 }
 
@@ -145,22 +131,7 @@ async function loadPosts() {
         if (error.code === '42P01') {
             customMessage = "Table 'posts' does not exist in Supabase. Please run the SQL schema script.";
         } else if (error.status === 401 || error.status === 403 || (error.message && (error.message.includes('JWT') || error.message.includes('key')))) {
-            customMessage = "Invalid Supabase credentials. Re-configuring database...";
-            // If using localStorage, clear it and reopen the setup modal
-            if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY) {
-                CONFIG.clearCredentials();
-                modalSetup.dataset.preventClose = "true";
-                const closeSetupBtn = document.getElementById('btn-close-setup');
-                if (closeSetupBtn) {
-                    closeSetupBtn.classList.add('hidden');
-                }
-                setupUrl.value = "";
-                setupKey.value = "";
-                
-                setTimeout(() => {
-                    openModal(modalSetup);
-                }, 1500);
-            }
+            customMessage = "Invalid Supabase credentials. Please check your environment variables.";
         } else if (error.message) {
             customMessage = `Fetch failed: ${error.message}`;
         }
@@ -593,38 +564,6 @@ function setupEventListeners() {
         writerFilter.value = "";
         renderGrid();
     });
-    
-    // 8. Setup Wizard Form Submit
-    formSetup.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const urlVal = setupUrl.value.trim();
-        const keyVal = setupKey.value.trim();
-        
-        if (CONFIG.saveCredentials(urlVal, keyVal)) {
-            connectToSupabase(urlVal, keyVal);
-        } else {
-            showToast("Invalid credentials inputted.", "error");
-        }
-    });
-    
-    // 9. Manual Setup Modal Trigger in Header
-    const btnOpenSetup = document.getElementById('btn-open-setup');
-    const btnCloseSetup = document.getElementById('btn-close-setup');
-    
-    if (btnOpenSetup) {
-        btnOpenSetup.addEventListener('click', () => {
-            // Pre-fill existing credentials for editing convenience
-            setupUrl.value = CONFIG.getSupabaseUrl();
-            setupKey.value = CONFIG.getSupabaseAnonKey();
-            openModal(modalSetup);
-        });
-    }
-    
-    if (btnCloseSetup) {
-        btnCloseSetup.addEventListener('click', () => {
-            closeModal(modalSetup);
-        });
-    }
     
     // 10. Sticky Header and Scroll-To-Top button visibility
     window.addEventListener('scroll', () => {

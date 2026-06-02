@@ -170,36 +170,7 @@
         </div>
     </div>
 
-    <!-- 4. CREDENTIALS WIZARD MODAL (Fallback Setup) -->
-    <div class="modal-overlay hidden" id="modal-setup" role="dialog" aria-modal="true" aria-labelledby="setup-modal-title" data-prevent-close="true">
-        <div class="modal-card setup-card">
-            <div class="modal-header">
-                <h2 id="setup-modal-title">Configure Supabase</h2>
-                <button class="modal-close-icon hidden" id="btn-close-setup" aria-label="Close modal">&times;</button>
-            </div>
-            <p class="setup-intro">Welcome to <strong>iam_vijayn</strong>! To connect this application to your database, please provide your Supabase details below. These are stored locally in your browser and used only to connect to your instance.</p>
-            
-            <form id="form-setup" class="modal-form">
-                <div class="form-group">
-                    <label for="setup-url">Supabase Project URL</label>
-                    <input type="url" id="setup-url" required placeholder="https://your-project.supabase.co" autocomplete="off">
-                </div>
-                
-                <div class="form-group">
-                    <label for="setup-key">Supabase API Anon Key</label>
-                    <input type="text" id="setup-key" required placeholder="eyJhbGciOi..." autocomplete="off">
-                </div>
 
-                <div class="setup-help-box">
-                    <p>💡 <strong>Where to find these?</strong> In your Supabase dashboard, go to <strong>Project Settings</strong> &rarr; <strong>API</strong>. Copy the <code>Project URL</code> and <code>anon (public)</code> key.</p>
-                </div>
-                
-                <div class="modal-actions">
-                    <button type="submit" class="btn btn-primary btn-full">Connect Database</button>
-                </div>
-            </form>
-        </div>
-    </div>
 
     <!-- ==========================================
          TOAST NOTIFICATION ENGINE
